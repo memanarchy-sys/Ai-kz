@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Тарих тірілді — ИИ-гид по Казахстану</title>
+<!-- Leaflet CSS для карт внутри сообщений -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root { 
+    --bg:#f1f5f9; --panel:#ffffff; --border:#cbd5e1; --text:#0f172a; --muted:#64748b; --acc:#0284c7; --userbg:#0284c7; --usertx:#fff; --botbg:#e2e8f0; 
+    --scrollbar-thumb: #cbd5e1;
+    --scrollbar-track: transparent;
+    --correct-bg: #dcfce7; --correct-border: #22c55e; --correct-text: #15803d;
+    --wrong-bg: #fee2e2; --wrong-border: #ef4444; --wrong-text: #b91c1c;
+  }
+  :root[data-theme="dark"] { 
+    --bg:#0f172a; --panel:#1e293b; --border:#334155; --text:#e2e8f0; --muted:#94a3b8; --acc:#38bdf8; --userbg:#0ea5e9; --usertx:#fff; --botbg:#1e293b; 
+    --scrollbar-thumb: #334155;
+    --scrollbar-track: transparent;
+    --correct-bg: #14532d; --correct-border: #22c55e; --correct-text: #86efac;
+    --wrong-bg: #7f1d1d; --wrong-border: #ef4444; --wrong-text: #fca5a5;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; justify-content:center; transition:background .2s,color .2s; overflow: hidden; }
+  .app { width:100%; max-width:820px; height:100vh; display:flex; flex-direction:column; padding:16px; gap:10px; }
+  header { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:nowrap; }
+  header h1 { margin:0; font-size:1.25rem; }
+  header h1 span { color:var(--acc); }
+  .controls-top { display:flex; gap:8px; align-items:center; margin-left:auto; }
+  button, select { font-family:inherit; }
+  .btn, .lang button { background:var(--panel); color:var(--text); border:1px solid var(--border); padding:6px 10px; border-radius:8px; cursor:pointer; font-size:.85rem; }
+  .btn:hover, .lang button:hover { border-color:var(--acc); }
+  
+  .icon-btn { background:none; border:none; padding:4px 8px; font-size:1.1rem; cursor:pointer; line-height:1; color:var(--text); border-radius:6px; }
+  .icon-btn:hover { color:var(--acc); background:var(--botbg); }
+  .icon-btn.small-text { font-size: 0.75rem; }
+  
+  .lang { display:flex; gap:4px; }
+  .lang button.active { background:var(--acc); color:#fff; border-color:var(--acc); font-weight:600; }
+  
+  .controls-sub { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  select { background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:6px; font-size:.85rem; max-width:260px; flex:1; }
+  
+  #status { font-size:.8rem; color:var(--muted); }
+  .bar { height:4px; background:var(--border); border-radius:4px; overflow:hidden; }
+  .bar div { height:100%; width:0%; background:var(--acc); transition:width .3s; }
+
+  #chat { 
+    flex:1; 
+    overflow-y:auto; 
+    overflow-x:hidden; 
+    display:flex; 
+    flex-direction:column; 
+    gap:10px; 
+    padding:4px; 
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+  
+  #chat::-webkit-scrollbar { width: 6px; }
+  #chat::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+  #chat::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); border-radius: 4px; }
+
+  .msg { 
+    max-width:88%; 
+    padding:10px 14px; 
+    border-radius:14px; 
+    line-height:1.5; 
+    font-size:1rem; 
+    word-break: break-word; 
+    overflow-wrap: break-word;
+  }
+  .msg .t { white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; }
+  .bot { background:var(--botbg); border:1px solid var(--border); align-self:flex-start; border-bottom-left-radius:4px; }
+  .user { background:var(--userbg); color:var(--usertx); align-self:flex-end; border-bottom-right-radius:4px; }
+  .src { margin-top:6px; font-size:.75rem; color:var(--muted); }
+  
+  /* Карта прямо внутри сообщения бота */
+  .msg-map-box {
+    margin-top: 10px;
+    height: 180px;
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  /* Интерактивный блок викторины */
+  .quiz-box {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .quiz-option {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-align: left;
+    transition: all 0.2s;
+  }
+  .quiz-option:hover:not(:disabled) {
+    border-color: var(--acc);
+    background: var(--bg);
+  }
+  .quiz-option:disabled { cursor: default; }
+  .quiz-option.correct {
+    background: var(--correct-bg) !important;
+    border-color: var(--correct-border) !important;
+    color: var(--correct-text) !important;
+    font-weight: bold;
+  }
+  .quiz-option.wrong {
+    background: var(--wrong-bg) !important;
+    border-color: var(--wrong-border) !important;
+    color: var(--wrong-text) !important;
+  }
+
+  .hints-container { display:flex; flex-direction:column; gap:6px; }
+  .hints-header { display:flex; justify-content:flex-end; }
+  .btn-arrow { background:transparent; border:none; color:var(--muted); font-size:0.85rem; cursor:pointer; padding:2px 6px; }
+  .btn-arrow:hover { color:var(--acc); }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; transition:all 0.2s ease; }
+  .chips.hidden { display:none; }
+  .chip { background:var(--panel); border:1px solid var(--border); color:var(--text); padding:6px 12px; border-radius:999px; cursor:pointer; font-size:.85rem; }
+  .chip:hover { border-color:var(--acc); }
+  
+  .input { display:flex; gap:8px; }
+  .input input { flex:1; padding:14px; border-radius:12px; border:1px solid var(--border); background:var(--panel); color:var(--text); font-size:1rem; outline:none; }
+  .input input:focus { border-color:var(--acc); }
+  .input button { background:var(--acc); color:#fff; border:none; border-radius:12px; padding:0 22px; font-size:1rem; cursor:pointer; }
+  .input button:disabled, .input input:disabled { opacity:.5; cursor:not-allowed; }
+  footer { font-size:.72rem; color:var(--muted); text-align:center; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>🇰🇿 <span>Тарих тірілді</span> · AI</h1>
+    <div class="controls-top">
+      <div class="lang">
+        <button id="b-kz" onclick="setLang('kz')">KZ</button>
+        <button id="b-ru" class="active" onclick="setLang('ru')">RU</button>
+        <button id="b-en" onclick="setLang('en')">EN</button>
+      </div>
+      <button class="icon-btn" id="b-reload-ai" onclick="reloadAI()" title="Перезагрузить ИИ">↻</button>
+      <button class="icon-btn" id="b-theme" onclick="toggleTheme()" title="Сменить тему">🌙</button>
+    </div>
+  </header>
+
+  <div class="controls-sub">
+    <select id="model">
+      <option value="Qwen2.5-3B-Instruct-q4f16_1-MLC">Qwen 2.5 · 3B (рекомендуется)</option>
+      <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC">Llama 3.2 · 3B</option>
+      <option value="Qwen2.5-7B-Instruct-q4f16_1-MLC">Qwen 2.5 · 7B (мощный ПК, ~5 ГБ)</option>
+    </select>
+    <button class="icon-btn small-text" id="b-clear-chat" onclick="clearChat()" title="Перезагрузить чат">↩ Перезагрузить чат</button>
+  </div>
+
+  <div id="status">…</div>
+  <div class="bar"><div id="bar"></div></div>
+
+  <div id="chat"></div>
+  
+  <div class="hints-container">
+    <div class="hints-header">
+      <button class="btn-arrow" id="b-hints" onclick="toggleHints()" title="Подсказки">▼</button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <div class="input">
+    <input id="q" type="text" maxlength="500" autocomplete="off" disabled />
+    <button id="send" disabled onclick="ask()">➤</button>
+  </div>
+  <footer id="foot"></footer>
+</div>
+
+<!-- Leaflet JS для карт -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script type="module">
+import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+const $ = id => document.getElementById(id);
+window.$=$;
+let engine = null, busy = false, ready = false, lang = 'ru';
+let chatHistory = []; 
+let mapCounter = 0;
+
+const store = {
+  get:(k,d)=>{ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } },
+  set:(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} }
+};
+
+/* ================= ВСТРАИВАНИЕ КАРТЫ В СООБЩЕНИЕ ================= */
+function renderMapInMessage(msgElem, lat, lng, title) {
+  mapCounter++;
+  const mapId = `msg-map-${mapCounter}`;
+  
+  const mapBox = document.createElement('div');
+  mapBox.className = 'msg-map-box';
+  mapBox.id = mapId;
+  msgElem.appendChild(mapBox);
+
+  setTimeout(() => {
+    const map = L.map(mapId).setView([lat, lng], 8);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+    
+    L.marker([lat, lng]).addTo(map)
+      .bindPopup(`<b>${title}</b>`)
+      .openPopup();
+
+    map.invalidateSize();
+  }, 150);
+}
+
+/* ================= БАЗА ЗНАНИЙ (RAG) ================= */
+const KB_SOURCE = "встроенная база фактов";
+const KB = [
+ {k:["казахское ханство","ханство","керей","жанибек","жәнібек","1465","khanate","kazakh khanate","хандығы","хандық"], t:"Казахское ханство образовалось в 1465 году, когда султаны Керей и Жанибек откочевали в Семиречье и основали собственное государство. Это событие считается началом казахской государственности.", loc:[45.0, 76.0], name:"Семиречье (Жетісу)"},
+ {k:["касым","қасым","қасқа жол","kasym"], t:"Касым-хан правил в 1511–1521 годах, расширил территорию и укрепил Казахское ханство. Ему приписывают свод законов «Қасқа жол»."},
+ {k:["тауке","тәуке","жеты жаргы","жеті жарғы","zheti zhargy","laws"], t:"Хан Тауке (правил примерно в 1680–1718 годах) известен сводом законов «Жеты Жаргы» («Семь установлений»), упорядочившим право казахов."},
+ {k:["жуз","жүз","zhuz","juz"], t:"Казахи делились на три жуза: Старший (Ұлы жүз), Средний (Орта жүз) и Младший (Кіші жүз)."},
+ {k:["джунгар","жонгар","жоңғар","ақтабан","актабан","шубырынды","dzungar","jungar"], t:"В 1723–1727 годах Джунгарское нашествие обернулось для казахов «Ақтабан шұбырынды, Алқакөл сұламасы» — Великим бедствием. Победы при Булантах и Аныракае (1730) переломили ход борьбы.", loc:[43.8869, 75.3408], name:"Аныракайская битва"},
+ {k:["абылай","ablai","abylai"], t:"Абылай хан (1711–1781) — выдающийся правитель и дипломат, объединивший казахские жузы и отстаивавший их независимость."},
+ {k:["кенесары","kenesary"], t:"Кенесары Касымов возглавил национально-освободительное восстание 1837–1847 годов против колониальной политики Российской империи."},
+ {k:["1916","восстание 1916","uprising"], t:"В 1916 году в Центральной Азии и Казахстане вспыхнуло восстание против мобилизации на тыловые работы в Первую мировую войну."},
+ {k:["алаш","бокейхан","букейхан","alash","bokeikhan"], t:"Алаш-Орда — казахское национальное правительство, провозглашённое в декабре 1917 года. Его лидером был Алихан Букейханов; в движение входили Ахмет Байтурсынов, Миржакып Дулатов и другие деятели."},
+ {k:["казахская асср","ссср","советск","1920","1936","soviet","ussr"], t:"Казахская автономная республика образована в 1920 году, а в 1936 году стала Казахской ССР — союзной республикой в составе СССР."},
+ {k:["целина","целин","1954","virgin lands"], t:"Освоение целины началось в 1954 году: в степях Казахстана распахивали миллионы гектаров земель."},
+ {k:["полигон","ядерн","семипалатинск","невада","nuclear","polygon","test site","сынақ"], t:"Семипалатинский ядерный полигон действовал с 1949 по 1991 год. Первое испытание провели 29 августа 1949 года. Полигон закрыт 29 августа 1991 года. Движение «Невада–Семей» (1989) способствовало его закрытию.", loc:[50.1167, 78.4333], name:"Семипалатинский ядерный полигон"},
+ {k:["желтоксан","желтоқсан","декабрьск","1986","jeltoksan","december 1986"], t:"Декабрьские события (Желтоқсан) 16–17 декабря 1986 года — выступления молодёжи в Алма-Ате против назначения Геннадия Колбина первым секретарём ЦК Компартии Казахстана.", loc:[43.2389, 76.9455], name:"Алматы"},
+ {k:["суверенитет","25 октября","день республики","республики","sovereignty","republic day","республика күні","егемендік"], t:"25 октября 1990 года принята Декларация о государственном суверенитете Казахской ССР. Эта дата отмечается как День Республики."},
+ {k:["независимость","16 декабря","1991","тәуелсіздік","independence"], t:"Казахстан провозгласил независимость 16 декабря 1991 года. День Независимости отмечается 16 декабря."},
+ {k:["конституц","30 августа","1995","constitution"], t:"Действующая Конституция Казахстана принята на референдуме 30 августа 1995 года. День Конституции — 30 августа. Первая Конституция независимого Казахстана была принята в 1993 году."},
+ {k:["тенге","валют","1993","currency"], t:"Национальная валюта тенге введена в обращение 15 ноября 1993 года. Этот день отмечается как День национальной валюты."},
+ {k:["астана","столиц","нур-султан","алматы","1997","capital"], t:"Столица перенесена из Алма-Аты в Акмолу 10 декабря 1997 года. В 1998 году город переименован в Астану.", loc:[51.1694, 71.4491], name:"Астана"},
+ {k:["байконур","гагарин","космодром","baikonur","space"], t:"Космодром Байконур основан в 1955 году. 12 апреля 1961 года с него стартовал Юрий Гагарин — первый человек в космосе.", loc:[45.9650, 63.3050], name:"Космодром Байконур"},
+ {k:["абай","абая","құнанбайұлы","кунанбаев","abai","слова назидания","қара сөз"], t:"Абай Кунанбайулы (1845–1904) — великий казахский поэт, мыслитель и просветитель, основоположник казахской письменной литературы. Родился в Чингистау (нынешняя область Абай); с Семеем связана значительная часть его жизни.", loc:[50.4050, 80.2547], name:"Семей (Музей Абая)"},
+ {k:["ауэзов","мухтар","әуезов","auezov","абай жолы"], t:"Мухтар Ауэзов (1897–1961) — классик казахской литературы, автор романа-эпопеи «Абай жолы» («Путь Абая»)."},
+ {k:["достоевск","dostoevsky","достоевский"], t:"Фёдор Достоевский жил в Семипалатинске (ныне Семей) с 1854 по 1859 год. В городе работает его дом-музей.", loc:[50.4111, 80.2520], name:"Музей Достоевского в Семее"},
+ {k:["семей","семипалат","semey","semipalatinsk","город"], t:"Город основан в 1718 году как Семипалатная крепость на берегу Иртыша. В 2007 году Семипалатинск переименован в Семей. Сегодня Семей — центр области Абай.", loc:[50.4111, 80.2520], name:"Семей"},
+ {k:["кюй","курмангазы","құрманғазы","домбра","dombra","kui"], t:"Домбра — казахский двухструнный щипковый инструмент. Кюй — инструментальная пьеса. Великие кюйши: Курмангазы, Даулеткерей, Дина Нурпеисова."},
+ {k:["фараби","әл-фараби","farabi"], t:"Аль-Фараби (ок. 872–950) — философ и учёный, «Второй учитель» после Аристотеля. Родом из Отрара в Южном Казахстане.", loc:[42.8539, 68.3017], name:"Древний Отрар"},
+ {k:["ясауи","ясави","туркестан","yasawi","turkestan"], t:"Мавзолей Ходжи Ахмеда Ясави в Туркестане построен по указу Тамерлана в конце XIV века; объект ЮНЕСКО.", loc:[43.2973, 68.2710], name:"Мавзолей Ходжи Ахмеда Ясави"},
+ {k:["золотой человек","иссык","есик","алтын адам","saka","сак ","golden man"], t:"«Золотой человек» найден в 1969 году в Иссыкском кургане (Алматинская область) археологом Кемалем Акишевым. Символ современного Казахстана.", loc:[43.3550, 77.3980], name:"Иссыкские курганы"},
+ {k:["тамгалы","петроглиф","tamgaly","petroglyph"], t:"Тамгалы — комплекс петроглифов близ Алматы, включён в список Всемирного наследия ЮНЕСКО в 2004 году.", loc:[43.8019, 75.5342], name:"Урочище Тамгалы"},
+ {k:["наурыз","nauryz","navruz"], t:"Наурыз — праздник весеннего равноденствия и Нового года по восточному календарю, отмечается 21–23 марта."},
+ {k:["язык","казахский язык","алфавит","латиниц","kazakh language","alphabet","тілі","әліпби"], t:"Казахский — государственный язык Казахстана, тюркской группы (кыпчакская ветвь)."},
+ {k:["арал","aral","экология"], t:"Аральское море в XX веке значительно высохло из-за забора воды для орошения. Северный Арал частично восстановлен (2005).", loc:[46.1000, 60.5000], name:"Аральское море"}
+];
+
+function retrieve(q){
+  const ql=q.toLowerCase(), out=[];
+  KB.map(e=>({e,s:e.k.reduce((a,kw)=>a+(ql.includes(kw)?kw.length:0),0)})).filter(x=>x.s>0)
+    .sort((a,b)=>b.s-a.s).slice(0,3).forEach(x=>out.push({t:x.e.t, src:KB_SOURCE, loc:x.e.loc, name:x.e.name}));
+  return out;
+}
+
+/* ================= ЯЗЫК И ИНТЕРФЕЙС ================= */
+function detect(t){
+  if(/[әғқңөұүһі]/i.test(t)) return 'kz';
+  if(/[а-яё]/i.test(t)) return 'ru';
+  if(/[a-z]/i.test(t)) return 'en';
+  return lang;
+}
+
+const SYS = {
+  ru: c=>`Ты — дружелюбный ИИ-гид по истории и культуре Казахстана.
+ПРАВИЛА:
+1. Отвечай ТОЛЬКО на русском языке.
+2. Коротко: 2–5 предложений.
+3. Опирайся на ПРОВЕРЕННЫЕ ФАКТЫ ниже. Не выдумывай даты, имена и числа.
+4. Если вопрос не о Казахстане, вежливо верни разговор к теме.
+
+${c}`,
+  kz: c=>`Сен — Қазақстан тарихы мен мәдениеті бойынша мейірімді ЖИ-гидсің.
+ЕРЕЖЕЛЕР:
+1. Тек қазақ тілінде жауап бер.
+2. Қысқа: 2–5 сөйлем.
+3. Төмендегі ТЕКСЕРІЛГЕН ФАКТІЛЕРГЕ сүйен (орысшадан аудар). Күн, есім, санды ойдан шығарма.
+4. Сұрақ Қазақстанға қатысты болмаса, сыпайы түрде тақырыпқа қайтар.
+
+${c}`,
+  en: c=>`You are a friendly AI guide to the history and culture of Kazakhstan.
+RULES:
+1. Reply ONLY in English.
+2. Be concise: 2-5 sentences.
+3. Rely on the VERIFIED FACTS below. Never invent dates, names or numbers.
+4. If the question is not about Kazakhstan, politely steer back.
+
+${c}`
+};
+
+const NOFACTS = {ru:"Проверенных фактов по этому вопросу нет. Отвечай только если уверен.", kz:"Бұл сұрақ бойынша тексерілген факті жоқ. Сенімді болсаң ғана жауап бер.", en:"No verified facts for this question. Answer only if sure."};
+const HEAD = {ru:"ПРОВЕРЕННЫЕ ФАКТЫ:", kz:"ТЕКСЕРІЛГЕН ФАКТІЛЕР:", en:"VERIFIED FACTS:"};
+const REM = {ru:"(Ответь только на русском языке.)", kz:"(Тек қазақ тілінде жауап бер.)", en:"(Answer in English only.)"};
+const CJK = /[\u3000-\u303f\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af\uff00-\uffef]/g;
+
+function langOK(txt,l){
+  if(CJK.test(txt)){ CJK.lastIndex=0; return false; }
+  CJK.lastIndex=0;
+  const cyr=(txt.match(/[а-яёәғқңөұүһі]/gi)||[]).length, lat=(txt.match(/[a-z]/gi)||[]).length;
+  if(l==='en') return lat>=cyr;
+  if(cyr<lat) return false;
+  if(l==='kz' && txt.length>60 && !/[әғқңөұүһі]/i.test(txt)) return false;
+  return true;
+}
+
+const UI = {
+ kz:{ph:"Қазақстан туралы сұрақ қойыңыз…", hello:"Сәлем! Мен Қазақстан тарихы мен мәдениеті бойынша ЖИ-гидпін - тікелей сұраңыз!", quizTag:"Викторина", chips:["Викторина","Қазақ хандығы қашан құрылды?","Абай кім?","Семей полигоны туралы айтып бер","Республика күні қашан?"], load:"Нейрожелі жүктелуде", ready:"ЖИ дайын — құрылғыда жұмыс істейді", think:"Ойлануда…", retry:"Жауапты тексеріп жатырмын…", foot:"Жауаптар құрылғыңызда жасалады. ЖИ қателесуі мүмкін.", src:"Дереккөз"},
+ ru:{ph:"Задайте вопрос о Казахстане…", hello:"Привет! Я ИИ-гид по истории и культуре Казахстана - просто спросите!", quizTag:"Викторина", chips:["Викторина","Когда образовалось Казахское ханство?","Кто такой Абай?","Расскажи о Семипалатинском полигоне","Когда День Республики?"], load:"Загрузка нейросети", ready:"ИИ готов — работает прямо на вашем устройстве", think:"Думаю…", retry:"Проверяю ответ…", foot:"Ответы генерируются на вашем устройстве. ИИ может ошибаться.", src:"Источник"},
+ en:{ph:"Ask anything about Kazakhstan…", hello:"Hi! I'm an AI guide to the history and culture of Kazakhstan - just ask!", quizTag:"Quiz", chips:["Quiz","When was the Kazakh Khanate founded?","Who was Abai?","Tell me about the Semipalatinsk test site","When is Republic Day?"], load:"Loading neural network", ready:"AI ready — running on your device", think:"Thinking…", retry:"Checking the answer…", foot:"Answers are generated on your device. AI can make mistakes.", src:"Source"}
+};
+
+let hintsVisible = store.get('hints','1')==='1';
+function applyHints(){ 
+  $('chips').classList.toggle('hidden', !hintsVisible);$('b-hints').textContent = hintsVisible ? '▼' : '▲'; 
+}
+window.toggleHints = ()=>{ 
+  hintsVisible = !hintsVisible; 
+  store.set('hints', hintsVisible ? '1' : '0'); 
+  applyHints(); 
+};
+
+function applyTheme(t){ document.documentElement.dataset.theme=t; $('b-theme').textContent = t==='dark'?'☀️':'🌙'; store.set('theme',t); }
+window.toggleTheme = ()=> applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+applyTheme(store.get('theme', matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+
+window.setLang = l => {
+  lang=l;
+  ['kz','ru','en'].forEach(x=>$('b-'+x).classList.toggle('active',x===l));
+  $('q').placeholder=UI[l].ph; $('foot').textContent=UI[l].foot;
+  $('chips').innerHTML='';
+
+  UI[l].chips.forEach(c=>{ 
+    const b=document.createElement('div'); 
+    b.className='chip'; 
+    b.textContent=c; 
+    b.onclick=()=>{
+      if(c === UI[l].quizTag) startQuiz();
+      else { $('q').value=c; ask(); }
+    };
+    $('chips').appendChild(b); 
+  });
+
+  applyHints();
+  if(ready) $('status').textContent=UI[l].ready;
+};
+
+function add(text, cls){
+  const m=document.createElement('div'); m.className='msg '+cls;
+  const t=document.createElement('div'); t.className='t'; t.textContent=text; m.appendChild(t);
+  $('chat').appendChild(m); $('chat').scrollTop=$('chat').scrollHeight; return m;
+}
+const setText=(m,txt)=>{ m.querySelector('.t').textContent=txt; $('chat').scrollTop=$('chat').scrollHeight; };
+
+window.clearChat = () => {
+  $('chat').innerHTML = '';
+  chatHistory = [];
+  add(UI[lang].hello, 'bot');
+};
+
+/* ================= ЛОГИКА ВИКТОРИНЫ C КНОПКАМИ ================= */
+async function startQuiz() {
+  if (!ready || busy) return;
+  
+  const userText = UI[lang].quizTag;
+  add(userText, 'user');
+  const out = add(UI[lang].think, 'bot');
+  busy = true;
+
+  // Формируем факт на основе чата или случайного факта
+  let topicFact = "";
+  if (chatHistory.length > 0) {
+    topicFact = chatHistory.slice(-4).map(h => h.text).join(" ");
+  } else {
+    const randomItem = KB[Math.floor(Math.random() * KB.length)];
+    topicFact = randomItem.t;
+  }
+
+  const quizPrompt = `Составь 1 короткий вопрос викторины по истории Казахстана на основе этого факта: "${topicFact}".
+ОБЯЗАТЕЛЬНЫЙ ФОРМАТ ОТВЕТА (ничего лишнего не пиши):
+Вопрос: [Текст вопроса]
+A) [Вариант 1]
+B) [Вариант 2]
+C) [Вариант 3]
+Правильный ответ: [Буква A, B или C]`;
+
+  try {
+    const response = await engine.chat.completions.create({
+      messages: [
+        { role: "system", content: SYS[lang]("Используй только указанные инструкции для создания вопроса викторины.") },
+        { role: "user", content: quizPrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 300
+    });
+
+    const rawText = response.choices[0]?.message?.content || "";
+    parseAndRenderQuiz(out, rawText);
+  } catch (e) {
+    console.error(e);
+    setText(out, "Не удалось сформировать вопрос. Попробуйте еще раз.");
+  }
+  busy = false;
+}
+
+function parseAndRenderQuiz(msgElem, rawText) {
+  // Ищем правильный ответ
+  const matchCorrect = rawText.match(/Правильный ответ:\s*([A-CА-В])/i);
+  const correctChar = matchCorrect ? matchCorrect[1].toUpperCase().replace('А','A').replace('В','B') : 'A';
+
+  // Вытаскиваем вопрос и варианты
+  const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  let question = "";
+  const options = [];
+
+  lines.forEach(line => {
+    if (line.toLowerCase().startsWith('вопрос:')) {
+      question = line.replace(/вопрос:/i, '').trim();
+    } else if (/^[A-CА-В][\)\.]/i.test(line)) {
+      options.push(line);
+    }
+  });
+
+  if (!question && lines.length > 0) question = lines[0];
+
+  // Отображаем текстовый вопрос
+  setText(msgElem, question || rawText);
+
+  if (options.length > 0) {
+    const quizBox = document.createElement('div');
+    quizBox.className = 'quiz-box';
+
+    options.forEach(optText => {
+      const optBtn = document.createElement('button');
+      optBtn.className = 'quiz-option';
+      optBtn.textContent = optText;
+
+      const firstChar = optText.charAt(0).toUpperCase().replace('А','A').replace('В','B');
+
+      optBtn.onclick = () => {
+        // Блокируем все варианты
+        const allBtns = quizBox.querySelectorAll('.quiz-option');
+        allBtns.forEach(b => b.disabled = true);
+
+        if (firstChar === correctChar) {
+          optBtn.classList.add('correct');
+        } else {
+          optBtn.classList.add('wrong');
+          // Подсвечиваем верный
+          allBtns.forEach(b => {
+            if (b.textContent.charAt(0).toUpperCase().replace('А','A').replace('В','B') === correctChar) {
+              b.classList.add('correct');
+            }
+          });
+        }
+      };
+      quizBox.appendChild(optBtn);
+    });
+
+    msgElem.appendChild(quizBox);
+  }
+}
+
+/* ================= НЕЙРОСЕТЬ ================= */
+$('model').value = store.get('model',$('model').value);
+if(!$('model').value)$('model').selectedIndex = 0;
+
+async function init(){
+  ready=false; busy=false; $('q').disabled=$('send').disabled=true; $('model').disabled=true; $('bar').style.width='0%';
+  try{
+    engine = await webllm.CreateMLCEngine($('model').value,{
+      initProgressCallback:p=>{ $('status').textContent=`${UI[lang].load}: ${Math.round(p.progress*100)}%`; $('bar').style.width=(p.progress*100)+'%'; }
+    });
+    ready=true; $('status').textContent=UI[lang].ready; $('bar').style.width='100%';$('q').disabled=$('send').disabled=false; $('q').focus();
+  }catch(e){
+    console.error(e); $('status').textContent="WebGPU error";
+    add("Нужен компьютер с современным Chrome/Edge (WebGPU). / WebGPU керек: Chrome/Edge. / Requires Chrome/Edge with WebGPU.","bot");
+  }
+  $('model').disabled=false;
+}
+
+window.reloadAI = () => {
+  engine = null;
+  init();
+};
+
+$('model').onchange=()=>{ store.set('model',$('model').value); reloadAI(); };
+
+async function generate(messages, out, temp){
+  const stream = await engine.chat.completions.create({ messages, temperature:temp, top_p:0.85, max_tokens:420, stream:true });
+  let acc='';
+  for await (const ch of stream){ acc += ch.choices[0]?.delta?.content || ''; setText(out, acc); }
+  return acc.trim();
+}
+
+window.ask = async () => {
+  const text=$('q').value.trim();
+  if(!text||!ready||busy) return;
+
+  // Отдельная обработка если пользователь вручную написал "Викторина"
+  if (text.toLowerCase() === 'викторина' || text.toLowerCase() === 'quiz') {
+    $('q').value = '';
+    startQuiz();
+    return;
+  }
+
+  busy=true; $('q').value=''; add(text,'user');
+  chatHistory.push({role: 'user', text});
+
+  const out=add(UI[lang].think,'bot');
+  const L = detect(text);
+  const facts = retrieve(text);
+
+  const ctx = facts.length ? HEAD[L]+"\n- "+facts.map(f=>f.t).join("\n- ") : NOFACTS[L];
+  const user = `${text}\n\n${REM[L]}`;
+  try{
+    let acc='', ok=false;
+    for(let attempt=0; attempt<3 && !ok; attempt++){
+      const extra = attempt ? "\n\nВАЖНО / IMPORTANT: "+REM[L] : "";
+      acc = await generate([{role:"system",content:SYS[L](ctx)+extra},{role:"user",content:user}], out, attempt?0.1:0.25);
+      ok = acc && langOK(acc,L);
+      if(!ok && attempt<2) setText(out, UI[lang].retry);
+    }
+    if(!ok){ acc = acc.replace(CJK,'').trim(); }
+    setText(out, acc || '…');
+    chatHistory.push({role: 'bot', text: acc});
+
+    // Если у факта есть координаты — рендерим карту ПРЯМО ВНУТРИ сообщения
+    const locFact = facts.find(f => f.loc);
+    if (locFact) {
+      renderMapInMessage(out, locFact.loc[0], locFact.loc[1], locFact.name);
+    }
+
+    if(facts.length){
+      const s=document.createElement('div'); s.className='src';
+      s.textContent = "📚 "+UI[lang].src+": "+[...new Set(facts.map(f=>f.src))].join(", ");
+      out.appendChild(s);
+    }
+  }catch(e){ console.error(e); setText(out,"Error / Қате / Ошибка"); }
+  busy=false;
+};
+$('q').addEventListener('keydown',e=>{ if(e.key==='Enter') ask(); });
+
+setLang('ru'); add(UI.ru.hello,'bot'); init();
+</script>
+</body>
+</html>
